@@ -1,0 +1,7 @@
+html
+latex
+build
+bin
+.clang-format
+compile_commands.json
+TAGS

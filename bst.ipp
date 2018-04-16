@@ -21,7 +21,8 @@ fmt::_::BST<T_key, T_data, T_ind>::BST(const std::vector<T_data>& vec) {
 
 template<class T_key, class T_data, class T_ind>
 void fmt::_::BST<T_key, T_data, T_ind>::_construct(const std::vector<T_data>& vec, const T_ind left,
-																						const T_ind right, Node* dad, const bool is_left) {
+																									 const T_ind right, Node* dad,
+																									 const bool is_left) {
 	const T_ind piv = (left + right) / T_ind(2);
 	Node* node = new Node(dad, vec[piv]->x, vec[piv], is_left);
 
@@ -45,10 +46,8 @@ T_data fmt::_::BST<T_key, T_data, T_ind>::find(const T_key key) const {
 	while (true) {
 		if (key == node->key) break;
 		if (key > node->key) {
+			if (!node->right) break;
 			node = node->right;
-#ifndef FMT_NOEXCEPT
-			if (!node) throw std::runtime_error("Could not find a node above the specified key");
-#endif
 		} else {
 			if (!node->left) break;
 			node = node->left;

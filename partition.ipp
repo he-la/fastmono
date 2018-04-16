@@ -2,6 +2,7 @@
 #define FMT_PARTITION_IPP
 /* Implements the partitioning algorithm to subset a given polygon into monotone parts.
  * This file provides the bottom layer to the abstraction of the polygon class.
+ * It consists solely of the function fmt::partition.
  */
 
 #include "bst.hpp" // actually not a bst but an interval tree
@@ -53,12 +54,17 @@ typename std::vector<MonoPart<T_ind>>*
 	bool sweeping_right = poly[0]->x < poly[1]->x; // track current sweep direction
 	T_vert max_x = NULL; // track max x coordinate to append dummy split event
 
-	for (T_ind i = T_ind(0); i < poly.size(); ++i) {
-		if ((poly[i - 1]->x < poly[i]->x) != sweeping_right) {
+	// TODO: mod rollover without copy
+	// TODO: Don't use mod arithmetic but instead roll over manually for far
+	// better performance
+	for (T_ind idx = T_ind(1); idx <= poly.size(); ++idx) {
+		T_ind i = idx % poly.size();
+		if ((poly[idx - 1]->x < poly[i]->x) != sweeping_right) {
 			sweeping_right = !sweeping_right;
 
-			if (_::is_reflex<Polygon<T_vert, T_ind>, T_ind>(poly, i)) // reflex angle around i
-				if (!sweeping_right) {                                  // Now sweeping LEFT!
+			if (_::is_reflex<Polygon::Vertex*>(poly[idx - 1], poly[i],
+																				 poly[(idx + 1) % poly.size()])) // reflex angle around i
+				if (!sweeping_right) {                                           // Now sweeping LEFT!
 					evs.emplace_back(i, evs.empty() ? nullptr : &evs.back(), _::MERGE);
 					ev_merges.emplace_back(evs.back());
 				} else { // Now sweeping RIGHT!
@@ -78,17 +84,20 @@ typename std::vector<MonoPart<T_ind>>*
 	evs.back().next = &evs.front();
 	evs.front().prev = &evs.back();
 
+	// Report data on vector reallocation in DEBUG mode to help find more suitable
+	// guess values
 #ifdef DEBUG
-	_::report_vector_reallocation(evs.size(), g_starts + g_merges + g_splits + g_stops, "evs");
-	_::report_vector_reallocation(ev_starts.size(), g_starts, "ev_starts");
-	_::report_vector_reallocation(ev_merges.size(), g_merges, "ev_merges");
-	_::report_vector_reallocation(ev_splits.size(), g_splits, "ev_splits");
+	_::report_vector_reallocation(evs, "evs", g_starts + g_merges + g_splits + g_stops);
+	_::report_vector_reallocation(ev_starts, "ev_starts", g_starts);
+	_::report_vector_reallocation(ev_merges, "ev_merges", g_merges);
+	_::report_vector_reallocation(ev_splits, "ev_splits", g_splits);
 #endif
 
 	/* Stage 2: Building the split set */
 
 	// Sort split vertices in guaranteed Θ(s log s) for s split vertices
-	_::qsort<T_vert, T_ind>(ev_splits, 0, ev_splits.size() - 1); // uses quicksort defined above
+	if (!ev_splits.empty())
+		_::qsort<T_vert, T_ind>(ev_splits, 0, ev_splits.size() - 1); // uses quicksort defined above
 
 	// Dummy to attach starts behind last split. Note that the event pointed to is meaningless
 	ev_splits.push_back(
@@ -107,7 +116,8 @@ typename std::vector<MonoPart<T_ind>>*
 	} else {
 		// No split vertex exists, attach all to dummy.
 		// ev_splits.back()->starts.reserve(ev_starts.size());
-		// TODO: Write custom allocator to pre-allocate forward list
+		// TODO: Write custom allocator to pre-allocate forward list or just use a
+		// vector for better locality as all values are just pointers anyway
 
 		for (auto&& it = ev_starts.begin(); it != ev_starts.end(); ++it)
 			ev_splits.back()->starts.push_front(*it);
@@ -155,10 +165,12 @@ typename std::vector<MonoPart<T_ind>>*
 			MonoPart<T_ind>& this_part = **it_p;
 
 			if (!this_part.active)
-				continue; // TODO: Reevaluate the necessity of this check with the new deletion model
+				continue; // TODO: Reevaluate the necessity of this check with the new
+                  // deletion model
 
-			// Step through each vertex in the part in a while loop so that we can manually handle
-			// deletions and increments. Termination is handled by the condition in the loop.
+			// Step through each vertex in the part in a while loop so that we can
+			// manually handle deletions and increments. Termination is handled by the
+			// condition in the loop.
 			while (true) {
 				bool is_upper;
 				_::EventVertex<T_ind>* this_vert;
@@ -183,13 +195,14 @@ typename std::vector<MonoPart<T_ind>>*
 				// If merge, else if stop
 				if (this_vert->type == _::MERGE) {
 					// Logic:
-					// 1. Check whether the vertex with higher x than this vertex on the upper opposing chain
-					// has an x below the current split vertex. 2.a If it does, set merge_to to that vertex.
+					// 1. Check whether the vertex with higher x than this vertex on the
+					// upper opposing chain has an x below the current split vertex. 2.a
+					// If it does, set merge_to to that vertex.
 					// 2.b If it does not, repeat for the lower opposing chain.
-					// 3.a If this vertex cannot be merged to either, continue with the next part. This merge
-					// vertex must behandled at the next split vertex. 3.b Else, a merge_to vertex exist.
-					// Merge to it and mark the current part as done.
-
+					// 3.a If this vertex cannot be merged to either, continue with the
+					// next part. This merge vertex must behandled at the next split
+					// vertex. 3.b Else, a merge_to vertex exist. Merge to it and mark the
+					// current part as done.
 					T_ind merge_to;
 					typename _::EventVertex<T_ind>*upper,
 							*lower; // EventVertex structs above and below the merge vertex
@@ -201,8 +214,8 @@ typename std::vector<MonoPart<T_ind>>*
 											? this_part.lower
 											: this_vert->template get_data<_::MergeVertex<T_ind>>()->part_below->lower;
 
-					// Lambda since C++ doesn't do proper macros very well and moving this out into a function
-					// would become quite confusing.
+					// Lambda since C++ doesn't do proper macros very well and moving this
+					// out into a function would become quite confusing.
 					auto check_merge = [&merge_to, &this_vert, &this_split,
 															&poly](const Polygon::Vertex* vertex,
 																		 void (*oprtr)(const Polygon::Vertex*)) {
@@ -215,8 +228,8 @@ typename std::vector<MonoPart<T_ind>>*
 						return true;
 					};
 
-					// It would be better to figure out how to pass the operator directly, but the compiler
-					// should inline this so it's effectively the same.
+					// It would be better to figure out how to pass the operator directly,
+					// but the compiler should inline this so it's effectively the same.
 					bool merged_high = false, merged_low = false;
 					merged_high =
 							check_merge(poly[upper->index], [](const Polygon::Vertex* val) { val = val->next; });
@@ -229,8 +242,8 @@ typename std::vector<MonoPart<T_ind>>*
 						poly.add_diagonal(this_vert->index, merge_to);
 
 						// Update links between EventVertex structs to reflect new diagonal.
-						// First need to locate the next EventVertex after the probably normal vertex at
-						// merge_to.
+						// First need to locate the next EventVertex after the probably
+						// normal vertex at merge_to.
 						if (merged_high) {
 							for (; poly[upper->index]->x < poly[merge_to]->x; upper = upper->next)
 								;
@@ -264,7 +277,7 @@ typename std::vector<MonoPart<T_ind>>*
 
 				} else // If not merge, it must be stop
 #ifdef DEBUG   // If debugging, check if remaining vertex is truly stop, else throw exception.
-						if (vert.type == STOP)
+						if (this_vert->type == _::STOP)
 #endif
 				{ // Stop Vertex
 					this_part.active = false;
@@ -287,7 +300,7 @@ typename std::vector<MonoPart<T_ind>>*
 		while (it_p != actives.end()) {
 			MonoPart<T_ind>& this_part = **it_p;
 			if (!this_part.active) {
-				rbtree.remove(this_part.template get_node<T_vert, MonoPart<T_ind>*>());
+				if (this_part.node) rbtree.remove(this_part.template get_node<T_vert, MonoPart<T_ind>*>());
 				actives.erase_after(it_p_last);
 				it_p = it_p_last;
 				++it_p;
@@ -306,7 +319,7 @@ typename std::vector<MonoPart<T_ind>>*
 			++it_p;
 		} // Second iteration through actives
 
-		if (it == ev_splits.end()) break; // No need to lookup dummy
+		if (it == (--ev_splits.end())) break; // No need to lookup dummy
 
 		MonoPart<T_ind>* to_split = rbtree.find(this_split.y);
 

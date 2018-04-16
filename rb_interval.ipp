@@ -241,12 +241,12 @@ T_data _::RB_Interval<T_key, T_data, T_ind>::find(const T_key key) const {
 	Node* last_right = nullptr;
 
 	while (true) // location routine
-		if (tmp_node->key > key)
+		if (tmp_node->key > key) {
 			if (tmp_node->left)
 				tmp_node = tmp_node->left;
 			else
 				return last_right->data;
-		else if (tmp_node->right) {
+		} else if (tmp_node->right) {
 			last_right = tmp_node;
 			tmp_node = tmp_node->right;
 		} else

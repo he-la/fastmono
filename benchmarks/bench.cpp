@@ -8,6 +8,7 @@
 #include <iterator>
 #include <list>
 #include <ostream>
+#include <ratio>
 #include <utility>
 #include <vector>
 
@@ -28,28 +29,27 @@
 	#else*/
 #include <CGAL/double.h>
 //#warn CGAL::GMP is not supported. This may cause problems in polygon generation for degenerate
-//point sets.
-typedef double RT;
+// point sets.
 //#endif
 
-typedef CGAL::Simple_cartesian<RT> K;
+typedef CGAL::Simple_cartesian<float> K;
 typedef K::Point_2 Point_2;
 typedef std::list<Point_2> Container;
 typedef CGAL::Polygon_2<K, Container> Polygon_2;
-typedef CGAL::Creator_uniform_2<int, Point_2> Creator;
+typedef CGAL::Creator_uniform_2<float, Point_2> Creator;
 typedef CGAL::Random_points_in_square_2<Point_2, Creator> Point_generator;
 
-#include "polypartition/polypartition.h" // ear clipping and monotone. Must be anti-clockwise.
+#include "polypartition/src/polypartition.h" // ear clipping and monotone. Must be anti-clockwise.
 
 //#include "seidel/interface.h" // seidel (C library). Must be anti-clockwise. Requires vertex array
-//where arr[0] is unused.
+// where arr[0] is unused.
 // NOTE: SEIDEL DOES NOT WORK
 
 #include "../polygon.hpp" // FastMono interface
 
 using namespace std;
 
-constexpr double RADIUS = 1;
+constexpr float RADIUS = 100;
 
 // Generate random n-vertex polygon
 TPPLPoly* rpg(unsigned int size) { // we apologise for the inconvenience
@@ -78,50 +78,45 @@ TPPLPoly* rpg(unsigned int size) { // we apologise for the inconvenience
 	return poly;
 }
 
-#define ITERATIONS 10000
+constexpr unsigned int ITERATIONS = 10000;
 unsigned int N = 100;
+
 int main(int argc, char* argv[]) {
-	chrono::duration<double> diff;
+
+	const char* filename = argc < 2 ? "data.csv" : argv[1];
+	cout << "Starting benchmark at N=" << N << endl
+			 << "Data will be written to " << filename
+			 << (argc < 2 ? " (pass filename as argument to change)" : "") << endl
+			 << "Time is reported in ms." << endl
+			 << endl;
+
+	typedef chrono::duration<double, milli> diff;
 
 	list<TPPLPoly>* triangles = new list<TPPLPoly>;
 	TPPLPartition pp;
 	filebuf fb;
-	if (argc < 2)
-		fb.open("_log.csv", ios::out);
-	else
-		fb.open(argv[1], ios::out);
+	fb.open(filename, ios::out);
 
 	ostream csvstream(&fb);
 
 	csvstream << "N,GEN,EC,MONO,FMT" << endl;
-	const ostream* ptr = &csvstream;
 
 	if (argc == 3) N = stoi(argv[2]);
 
 	while (N < USHRT_MAX / 2) {
-		double _t_gen = 0;
-		double _t_ec = 0;
-		double _t_mono = 0;
-		double _t_fmt = 0;
-
-		for (int i = 0; i < ITERATIONS; ++i) {
-			cout << '.';
+		for (unsigned int i = 0; i < ITERATIONS; ++i) {
 
 			auto start = chrono::steady_clock::now();
 			TPPLPoly* tppl_poly = rpg(N);
 			auto end = chrono::steady_clock::now();
-			diff = end - start;
-			_t_gen = diff.count();
-			cout << "G";
+			diff _t_gen = end - start;
 
 			triangles->clear();
 
 			start = chrono::steady_clock::now();
 			pp.Triangulate_EC(tppl_poly, triangles);
 			end = chrono::steady_clock::now();
-			diff = end - start;
-			_t_ec = diff.count();
-			cout << "E";
+			diff _t_ec = end - start;
 
 			triangles->clear();
 
@@ -129,13 +124,11 @@ int main(int argc, char* argv[]) {
 			start = chrono::steady_clock::now();
 			pp.Triangulate_MONO(tppl_poly, triangles);
 			end = chrono::steady_clock::now();
-			diff = end - start;
-			_t_mono = diff.count();
+			diff _t_mono = end - start;
 			//} catch(const exception& e) {
 			// cout << endl << "Exception: ";
 			// cout << e.what() << endl;
 			//}
-			cout << "M";
 
 			vector<float> v_cw;
 			v_cw.reserve(tppl_poly->GetNumPoints() * 2);
@@ -146,22 +139,18 @@ int main(int argc, char* argv[]) {
 
 			fmt::Polygon<float, unsigned int> fmt_poly = fmt::Polygon<float, unsigned int>(v_cw);
 
-			cout << ":";
-
 			start = chrono::steady_clock::now();
 			fmt_poly.get_indices();
 			end = chrono::steady_clock::now();
-			diff = end - start;
-			_t_fmt = diff.count();
+			diff _t_fmt = end - start;
 
-			cout << '=';
-			csvstream << N << "," << _t_gen << "," << _t_ec << "," << _t_mono << "," << _t_fmt << endl;
+			csvstream << N << "," << _t_gen.count() << "," << _t_ec.count() << "," << _t_mono.count()
+								<< "," << _t_fmt.count() << endl;
 
 			delete tppl_poly;
 		}
 
-		cout << endl << "====== DONE WITH N=" << N << ". NEXT IS N=" << N * 1.5 << "=====" << endl;
-
+		cout << "\rDone with N=" << N << ". Now benchmarking N=" << (unsigned int) (N * 1.05) << flush;
 		N *= 1.05;
 	}
 	delete triangles;

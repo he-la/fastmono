@@ -44,9 +44,9 @@ public:
 private:
 	std::vector<Vertex*> poly; //!< Vertices of the polygon
 
-	bool has_diagonals;       //!< Indicates whether the polygon contains any diagonals.
-	bool has_valid_diagonals; //!< Indicates whether the current set of diagonals is up-to-date
-	bool has_valid_indices;   //!< Indicates whether the current set of triangle indices is up-to-date
+	bool has_diagonals = false;       //!< Indicates whether the polygon contains any diagonals.
+	bool has_valid_diagonals = false; //!< Indicates whether the current set of diagonals is up-to-date
+	bool has_valid_indices = false;   //!< Indicates whether the current set of triangle indices is up-to-date
 
 	std::vector<T_ind> indices; //!< Caches the latest triangle indices
 
@@ -174,7 +174,7 @@ public:
 		@returns A pointer to a vector containing all monotone parts to be passed to fmt::triangulate.
 		The caller is responsible for memory management of the vector.
 	*/
-	// TODO: Base default frac values on empiric data
+  // TODO: Base default frac values on actual math
 	std::vector<MonoPart<T_ind>>* partition(T_ind frac_starts = 8, T_ind frac_merges = 10,
 																					T_ind frac_splits = 10, T_ind frac_stops = 8);
 

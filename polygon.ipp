@@ -16,11 +16,10 @@ fmt::Polygon<T_vert, T_ind>::Polygon(const std::vector<T_vert>& vec) {
 template<class T_vert, class T_ind>
 void fmt::Polygon<T_vert, T_ind>::set_vertices(const std::vector<T_vert>& vec) {
 #ifndef FMT_NOEXCEPT
-	if (!vec.size() % 2)
+	if (vec.size() % 2)
 		throw std::invalid_argument("Input vector is malformed, it must list x and y succesively.");
-	if (vec.size() <
-			6) // technically would be possible, yet it is bad practice and likely indicates an
-				 // unintended input vector.
+	if (vec.size() < 6) // technically would be possible, yet it is bad practice and likely indicates
+											// an unintended input vector.
 		throw std::invalid_argument("Cannot create polygon with less than three vertices.");
 #endif
 
@@ -31,6 +30,11 @@ void fmt::Polygon<T_vert, T_ind>::set_vertices(const std::vector<T_vert>& vec) {
 	poly.resize(vec.size() / 2);
 	bool is_greater = existing_size < poly.size();
 
+#ifdef DEBUG
+	std::cout << "Existing size: " << existing_size << "; Current size: " << poly.size()
+						<< "; Is greater: " << is_greater << std::endl;
+#endif
+
 	// Update element zero if it exists, else create it
 	if (existing_size)
 		poly[0]->set(vec[0], vec[1]);
@@ -38,12 +42,12 @@ void fmt::Polygon<T_vert, T_ind>::set_vertices(const std::vector<T_vert>& vec) {
 		poly[0] = new Vertex(vec[0], vec[1]);
 
 	// Update all existing elements
-	for (T_ind i = T_ind(2); i < (is_greater ? existing_size : poly.size()); i += 2)
+	for (T_ind i = T_ind(2); i < 2 * (is_greater ? existing_size : poly.size()); i += 2)
 		poly[i / 2]->set(vec[i], vec[i + 1], poly[(i / 2) - 1]);
 
 	// Create new elements
 	if (is_greater)
-		for (T_ind i = existing_size * 2; i < vec.size(); i += 2)
+		for (T_ind i = (existing_size ? existing_size * 2 : 2); i < vec.size(); i += 2)
 			poly[i / 2] = new Vertex(vec[i], vec[i + 1], poly[(i / 2) - 1]);
 
 	// Link begin and end

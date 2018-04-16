@@ -1,0 +1,3 @@
+[submodule "benchmarks/polypartition"]
+	path = benchmarks/polypartition
+	url = https://github.com/ivanfratric/polypartition

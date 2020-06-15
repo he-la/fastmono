@@ -1,3 +1,7 @@
+_NOTE_: Retracted - the below was written under an abundance of confidence. I was made aware that the algorithm is flawed even on a conceptual level and will not work or achieve the desired asymptotic complexity. I originally decided the algorithm to tackle fast triangulation of complex (self-intersecting) polygons. I still believe that monotone partitioning is the right approach to do this in principle, however when trying to fix the issues in this algorithm, I realised that I was essentially reinventing Seidel's algorithm. As such, Seidel's algorithm is probably a much better approach also for complex polygons, but I have lost interest in pursuing this problem further.
+
+----
+
 _NOTE_: Due to shortcuts in the internal representation of diagonals, certain
 polygons can cause the library to crash with a segfault. This should be
 considered a critical bug and use of this library is strongly discouraged until
